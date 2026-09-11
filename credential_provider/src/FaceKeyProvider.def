@@ -1,0 +1,4 @@
+LIBRARY "FaceKeyProvider"
+EXPORTS
+    DllCanUnloadNow     PRIVATE
+    DllGetClassObject   PRIVATE

@@ -1,0 +1,7 @@
+#pragma once
+#include <guiddef.h>
+
+// {A5B3C2D1-4E5F-6A7B-8C9D-0E1F2A3B4C5D}
+DEFINE_GUID(CLSID_FaceKeyProvider,
+    0xa5b3c2d1, 0x4e5f, 0x6a7b,
+    0x8c, 0x9d, 0x0e, 0x1f, 0x2a, 0x3b, 0x4c, 0x5d);
