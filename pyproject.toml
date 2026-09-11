@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.backends._legacy:_Backend"
+
+[project]
+name = "facekey"
+version = "0.1.0"
+description = "Face unlock for Windows using any RGB webcam. Offline, open source, no special hardware."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+keywords = ["face-recognition", "face-unlock", "windows", "biometric", "computer-vision"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Operating System :: Microsoft :: Windows :: Windows 10",
+    "Operating System :: Microsoft :: Windows :: Windows 11",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+dependencies = [
+    "opencv-python>=4.8.0",
+    "numpy>=1.24.0",
+    "huggingface-hub>=0.20.0",
+    "mediapipe>=0.10.9",
+    "pywin32>=306",
+    "pillow>=10.0.0",
+]
+
+[project.optional-dependencies]
+cpu = ["onnxruntime>=1.17.0"]
+gpu = ["onnxruntime-gpu>=1.17.0"]
+gui = ["customtkinter>=5.2.0", "pystray>=0.19.0"]
+dev = ["pytest>=7.0", "ruff>=0.3.0"]
+
+[project.scripts]
+facekey = "facekey.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["facekey*"]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
