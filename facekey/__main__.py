@@ -273,6 +273,23 @@ def cmd_tray(args):
     run_tray(force_cpu=args.cpu, camera_index=args.camera)
 
 
+def cmd_auth_window(args):
+    """Launch the quick auth window."""
+    from facekey.gui.auth_window import run_auth
+    run_auth(
+        force_cpu=args.cpu,
+        camera_index=args.camera,
+        timeout=args.timeout,
+        pipe_output=args.pipe_output,
+    )
+
+
+def cmd_service(args):
+    """Start the named pipe auth service."""
+    from facekey.service.pipe_server import run_service
+    run_service(force_cpu=args.cpu, camera_index=args.camera)
+
+
 def _status_display(result) -> tuple:
     from facekey.auth.pipeline import AuthStatus
     status_map = {
@@ -330,6 +347,12 @@ def main():
     sub.add_parser("gui-verify", help="Verify via GUI (CustomTkinter)")
     sub.add_parser("tray", help="Launch system tray app")
 
+    auth_win = sub.add_parser("auth-window", help="Quick face auth popup")
+    auth_win.add_argument("--timeout", type=int, default=15, help="Auth timeout in seconds")
+    auth_win.add_argument("--pipe-output", action="store_true", help="Print JSON result to stdout")
+
+    sub.add_parser("service", help="Start named pipe auth service")
+
     args = parser.parse_args()
 
     commands = {
@@ -340,7 +363,9 @@ def main():
         "benchmark": cmd_benchmark,
         "gui-enroll": cmd_gui_enroll,
         "gui-verify": cmd_gui_verify,
+        "auth-window": cmd_auth_window,
         "tray": cmd_tray,
+        "service": cmd_service,
     }
 
     if args.command in commands:
