@@ -255,6 +255,18 @@ def cmd_benchmark(args):
     print(f"  FPS:          ~{1000 / _avg(total_times):.1f}")
 
 
+def cmd_gui_enroll(args):
+    """Launch the GUI enrollment window."""
+    from facekey.gui.enrollment import run_enrollment
+    run_enrollment(force_cpu=args.cpu, camera_index=args.camera)
+
+
+def cmd_gui_verify(args):
+    """Launch the GUI verification window."""
+    from facekey.gui.verify import run_verify
+    run_verify(force_cpu=args.cpu, camera_index=args.camera)
+
+
 def _status_display(result) -> tuple:
     from facekey.auth.pipeline import AuthStatus
     status_map = {
@@ -308,6 +320,9 @@ def main():
     bench = sub.add_parser("benchmark", help="Benchmark pipeline performance")
     bench.add_argument("--frames", type=int, default=100, help="Number of frames to benchmark")
 
+    sub.add_parser("gui-enroll", help="Enroll via GUI (CustomTkinter)")
+    sub.add_parser("gui-verify", help="Verify via GUI (CustomTkinter)")
+
     args = parser.parse_args()
 
     commands = {
@@ -316,6 +331,8 @@ def main():
         "verify": cmd_verify,
         "profiles": cmd_profiles,
         "benchmark": cmd_benchmark,
+        "gui-enroll": cmd_gui_enroll,
+        "gui-verify": cmd_gui_verify,
     }
 
     if args.command in commands:
