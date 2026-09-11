@@ -6,7 +6,9 @@
 #include <ntsecapi.h>
 #include <wincred.h>
 #include <shlguid.h>
+#include <shlwapi.h>
 #include <strsafe.h>
+#include <new>
 
 #include "guid.h"
 
@@ -20,6 +22,11 @@ enum FIELD_ID {
     FI_NUM_FIELDS    = 5,
 };
 
+struct FIELD_STATE_PAIR {
+    CREDENTIAL_PROVIDER_FIELD_STATE cpfs;
+    CREDENTIAL_PROVIDER_FIELD_INTERACTIVE_STATE cpfis;
+};
+
 // Field descriptors for the credential tile
 static const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR s_FieldDescriptors[] = {
     { FI_ICON,          CPFT_TILE_IMAGE,    L"Icon",     CPFG_CREDENTIAL_PROVIDER_LOGO },
@@ -30,19 +37,19 @@ static const CREDENTIAL_PROVIDER_FIELD_DESCRIPTOR s_FieldDescriptors[] = {
 };
 
 static const FIELD_STATE_PAIR s_FieldStatePairsUnlock[] = {
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE       },  // icon
-    { CPFS_DISPLAY_IN_BOTH,          CPFIS_NONE       },  // label
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE       },  // status
-    { CPFS_HIDDEN,                   CPFIS_NONE       },  // password (hidden during face auth)
-    { CPFS_HIDDEN,                   CPFIS_NONE       },  // submit (hidden during face auth)
+    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE },
+    { CPFS_DISPLAY_IN_BOTH,          CPFIS_NONE },
+    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE },
+    { CPFS_HIDDEN,                   CPFIS_NONE },
+    { CPFS_HIDDEN,                   CPFIS_NONE },
 };
 
 static const FIELD_STATE_PAIR s_FieldStatePairsLogon[] = {
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE       },  // icon
-    { CPFS_DISPLAY_IN_BOTH,          CPFIS_NONE       },  // label
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE       },  // status
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_FOCUSED    },  // password
-    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE       },  // submit
+    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE    },
+    { CPFS_DISPLAY_IN_BOTH,          CPFIS_NONE    },
+    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE    },
+    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_FOCUSED },
+    { CPFS_DISPLAY_IN_SELECTED_TILE, CPFIS_NONE    },
 };
 
 // Named pipe
