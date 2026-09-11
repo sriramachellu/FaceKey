@@ -83,8 +83,15 @@ class AuthPipeline:
         if face is None:
             return AuthResult(status=AuthStatus.NO_FACE, elapsed_ms=_elapsed(start))
 
-        # Step 2: Anti-spoofing (soft signal — logged but not a hard gate yet)
+        # Step 2: Anti-spoofing
         is_real, spoof_score = self.antispoof.predict(frame, face["bbox"])
+        if not is_real:
+            self._record_failure()
+            return AuthResult(
+                status=AuthStatus.SPOOF_DETECTED,
+                spoof_score=spoof_score,
+                elapsed_ms=_elapsed(start),
+            )
 
         # Step 3: Align face and extract embedding
         aligned = self.detector.align_face(frame, face["landmarks"])

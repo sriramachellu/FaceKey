@@ -118,6 +118,7 @@ class AuthService:
 
                 if command == "authenticate":
                     timeout = request.get("timeout", AUTH_TIMEOUT_DEFAULT)
+                    timeout = max(1, min(int(timeout), 60))
                     response = self._do_authenticate(timeout)
                 elif command == "status":
                     response = self._do_status()
