@@ -8,11 +8,9 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageTk
 
-from facekey.auth import AuthPipeline
+from facekey.auth.fast_pipeline import FastPipeline
 from facekey.auth.pipeline import AuthStatus
-from facekey.camera import Camera
 from facekey.config import DEFAULT_CAMERA_INDEX
-from facekey.storage import EmbeddingVault
 from facekey.gui.theme import (
     ACCENT, SUCCESS, ERROR, WARNING,
     WINDOW_WIDTH, WINDOW_HEIGHT, CORNER_RADIUS, PREVIEW_SIZE,
@@ -30,7 +28,7 @@ STATUS_CONFIG = {
 
 
 class VerifyWindow(ctk.CTkToplevel):
-    """Real-time face verification window."""
+    """Real-time face verification window with optimized pipeline."""
 
     def __init__(self, master=None, force_cpu: bool = False,
                  camera_index: int = DEFAULT_CAMERA_INDEX,
@@ -45,9 +43,15 @@ class VerifyWindow(ctk.CTkToplevel):
         self._force_cpu = force_cpu
         self._camera_index = camera_index
         self._on_close_cb = on_close
-        self._camera: Camera | None = None
-        self._pipeline: AuthPipeline | None = None
+        self._pipeline: FastPipeline | None = None
         self._running = False
+
+        # Pre-allocate ring masks to avoid per-frame PIL overhead
+        self._ring_cache: dict[str, Image.Image] = {}
+        self._circle_mask = Image.new("L", (PREVIEW_SIZE, PREVIEW_SIZE), 0)
+        ImageDraw.Draw(self._circle_mask).ellipse(
+            (0, 0, PREVIEW_SIZE, PREVIEW_SIZE), fill=255,
+        )
 
         self._build_ui()
         self._start()
@@ -64,11 +68,12 @@ class VerifyWindow(ctk.CTkToplevel):
             font=ctk.CTkFont(size=28, weight="bold"),
         ).pack(anchor="w")
 
-        ctk.CTkLabel(
+        self._subtitle = ctk.CTkLabel(
             header, text="Looking for you...",
             font=ctk.CTkFont(size=14),
             text_color=(TEXT_SECONDARY_LIGHT, TEXT_SECONDARY_DARK),
-        ).pack(anchor="w", pady=(2, 0))
+        )
+        self._subtitle.pack(anchor="w", pady=(2, 0))
 
         # --- Circular preview ---
         preview_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -150,45 +155,43 @@ class VerifyWindow(ctk.CTkToplevel):
         threading.Thread(target=self._init_pipeline, daemon=True).start()
 
     def _init_pipeline(self):
+        from facekey.storage import EmbeddingVault
         vault = EmbeddingVault()
         if not vault.list_profiles():
             self.after(0, lambda: self._match_label.configure(text="No enrolled profiles"))
             return
 
-        self._pipeline = AuthPipeline(vault=vault, force_cpu=self._force_cpu)
-        self._camera = Camera(index=self._camera_index)
-        self._camera.open()
+        self._pipeline = FastPipeline(
+            force_cpu=self._force_cpu,
+            camera_index=self._camera_index,
+        )
+        self._pipeline.initialize()
 
-        time.sleep(1.5)
-        for _ in range(10):
-            self._camera.read()
-
+        profiles = ", ".join(self._pipeline.profiles_loaded)
+        self.after(0, lambda: self._subtitle.configure(text=f"Profiles: {profiles}"))
         self.after(0, self._update_frame)
 
     def _update_frame(self):
-        if not self._running or self._camera is None or self._pipeline is None:
+        if not self._running or self._pipeline is None:
             return
 
-        try:
-            frame = self._camera.read()
-        except Exception:
-            self.after(33, self._update_frame)
+        frame, result = self._pipeline.process_frame()
+
+        if frame is None or result is None:
+            self.after(16, self._update_frame)
             return
 
-        result = self._pipeline.authenticate_frame(frame)
         display = cv2.flip(frame, 1)
 
-        # Ring color based on status
         color, label = STATUS_CONFIG.get(
             result.status, (ACCENT, str(result.status.value))
         )
 
         if result.profile_name:
-            label = f"{result.profile_name}"
+            label = result.profile_name
 
         self._match_label.configure(text=label, text_color=color)
 
-        # Detail line
         detail_parts = []
         if result.status == AuthStatus.SUCCESS:
             detail_parts.append("Access Granted")
@@ -198,17 +201,30 @@ class VerifyWindow(ctk.CTkToplevel):
                 detail_parts.append("Liveness: pending...")
         self._detail_label.configure(text=" · ".join(detail_parts))
 
-        # Stats
         if result.similarity > 0:
             self._sim_card._val_label.configure(text=f"{result.similarity:.2f}")
         if result.spoof_score > 0:
             self._spoof_card._val_label.configure(text=f"{result.spoof_score:.2f}")
         self._latency_card._val_label.configure(text=f"{result.elapsed_ms:.0f}ms")
 
-        # Render preview
         self._render_preview(display, color)
+        self.after(16, self._update_frame)
 
-        self.after(33, self._update_frame)
+    def _get_ring(self, hex_color: str) -> Image.Image:
+        if hex_color in self._ring_cache:
+            return self._ring_cache[hex_color]
+
+        canvas_size = PREVIEW_SIZE + 16
+        ring = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(ring)
+
+        r_hex = hex_color.lstrip("#")
+        rgb = tuple(int(r_hex[i:i+2], 16) for i in (0, 2, 4))
+        draw.ellipse((0, 0, canvas_size - 1, canvas_size - 1), fill=(*rgb, 255))
+        draw.ellipse((4, 4, canvas_size - 5, canvas_size - 5), fill=(0, 0, 0, 0))
+
+        self._ring_cache[hex_color] = ring
+        return ring
 
     def _render_preview(self, display, ring_color):
         rgb = cv2.cvtColor(display, cv2.COLOR_BGR2RGB)
@@ -219,30 +235,18 @@ class VerifyWindow(ctk.CTkToplevel):
         left = (w - side) // 2
         top = (h - side) // 2
         pil_img = pil_img.crop((left, top, left + side, top + side))
-        pil_img = pil_img.resize((PREVIEW_SIZE, PREVIEW_SIZE), Image.LANCZOS)
+        pil_img = pil_img.resize((PREVIEW_SIZE, PREVIEW_SIZE), Image.BILINEAR)
 
-        mask = Image.new("L", (PREVIEW_SIZE, PREVIEW_SIZE), 0)
-        ImageDraw.Draw(mask).ellipse((0, 0, PREVIEW_SIZE, PREVIEW_SIZE), fill=255)
-        pil_img.putalpha(mask)
+        pil_img.putalpha(self._circle_mask)
 
         canvas_size = PREVIEW_SIZE + 16
         bg_color = self._apply_color(("#F2F2F2", "#1A1A1A"))
         result = Image.new("RGBA", (canvas_size, canvas_size),
                            bg_color + "FF" if len(bg_color) == 7 else bg_color)
 
-        ring_img = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
-        ring_draw = ImageDraw.Draw(ring_img)
+        ring = self._get_ring(ring_color)
+        result.paste(ring, (0, 0), ring)
 
-        r_hex = ring_color.lstrip("#")
-        r_rgb = tuple(int(r_hex[i:i+2], 16) for i in (0, 2, 4))
-        ring_draw.ellipse((0, 0, canvas_size - 1, canvas_size - 1), fill=(*r_rgb, 255))
-        inner_offset = 4
-        ring_draw.ellipse(
-            (inner_offset, inner_offset, canvas_size - 1 - inner_offset, canvas_size - 1 - inner_offset),
-            fill=(0, 0, 0, 0),
-        )
-
-        result.paste(ring_img, (0, 0), ring_img)
         offset = (canvas_size - PREVIEW_SIZE) // 2
         result.paste(pil_img, (offset, offset), pil_img)
 
@@ -252,12 +256,9 @@ class VerifyWindow(ctk.CTkToplevel):
 
     def _on_close(self):
         self._running = False
-        if self._camera:
-            try:
-                self._camera.close()
-            except Exception:
-                pass
-            self._camera = None
+        if self._pipeline:
+            self._pipeline.shutdown()
+            self._pipeline = None
         if self._on_close_cb:
             self._on_close_cb()
         self.destroy()

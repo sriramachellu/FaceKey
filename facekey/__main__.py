@@ -267,6 +267,12 @@ def cmd_gui_verify(args):
     run_verify(force_cpu=args.cpu, camera_index=args.camera)
 
 
+def cmd_tray(args):
+    """Launch the system tray app."""
+    from facekey.gui.tray import run_tray
+    run_tray(force_cpu=args.cpu, camera_index=args.camera)
+
+
 def _status_display(result) -> tuple:
     from facekey.auth.pipeline import AuthStatus
     status_map = {
@@ -322,6 +328,7 @@ def main():
 
     sub.add_parser("gui-enroll", help="Enroll via GUI (CustomTkinter)")
     sub.add_parser("gui-verify", help="Verify via GUI (CustomTkinter)")
+    sub.add_parser("tray", help="Launch system tray app")
 
     args = parser.parse_args()
 
@@ -333,6 +340,7 @@ def main():
         "benchmark": cmd_benchmark,
         "gui-enroll": cmd_gui_enroll,
         "gui-verify": cmd_gui_verify,
+        "tray": cmd_tray,
     }
 
     if args.command in commands:
