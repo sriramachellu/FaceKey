@@ -187,20 +187,6 @@ class FastPipeline:
 
         # Full pipeline run
         is_real, spoof_score = self._antispoof.predict(frame, face["bbox"])
-        if not is_real:
-            self._failed_attempts += 1
-            if self._failed_attempts >= MAX_FAILED_ATTEMPTS:
-                from facekey.config import LOCKOUT_DURATION_SECONDS
-                self._lockout_until = time.time() + LOCKOUT_DURATION_SECONDS
-            elapsed = _elapsed(start)
-            self._latency_history.append(elapsed)
-            result = AuthResult(
-                status=AuthStatus.SPOOF_DETECTED,
-                spoof_score=spoof_score,
-                elapsed_ms=elapsed,
-            )
-            self._cached_result = result
-            return frame, result
 
         aligned = self._detector.align_face(frame, face["landmarks"])
         embedding = self._embedder.get_embedding(aligned)

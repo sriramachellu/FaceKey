@@ -153,10 +153,6 @@ class AuthWindow(ctk.CTkToplevel):
         self._status.configure(text="Verifying...")
 
         is_real, spoof_score = self._antispoof.predict(frame, face["bbox"])
-        if not is_real:
-            self._status.configure(text=f"Spoof detected ({spoof_score:.2f})")
-            self.after(33, self._update_preview)
-            return
 
         aligned = self._detector.align_face(frame, face["landmarks"])
         embedding = self._embedder.get_embedding(aligned)
